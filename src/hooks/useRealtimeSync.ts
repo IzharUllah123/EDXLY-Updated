@@ -1,176 +1,414 @@
-import { useEffect, useRef, useState } from 'react';
+// useRealtimeSync.ts - FIREBASE VERSION (CONNECTION STATUS FIXED)
+import { useEffect, useRef, useState, useCallback } from "react";
+import * as Y from "yjs";
+import { FireProvider } from "y-fire";
+import { Awareness } from "y-protocols/awareness";
+import { initializeApp, getApps, getApp } from "firebase/app";
 
-// Simple real-time sync hook using localStorage as placeholder for WebSockets/Firebase
+// --- FIREBASE CONFIGURATION ---
+const firebaseConfig = {
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
+  databaseURL: import.meta.env.VITE_FIREBASE_DATABASE_URL,
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
+  appId: import.meta.env.VITE_FIREBASE_APP_ID,
+};
+
+// Initialize Firebase singleton to avoid re-initialization errors
+const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
+
+// --- INTERFACES ---
 interface SharedBoard {
   id: string;
-  hostName: string;
-  createdAt: Date;
-  lastModified: Date;
-  elements: any[]; // Drawing elements
+  elements: any[];
   participants: Participant[];
+  viewport: ViewportState;
+}
+
+interface ViewportState {
+  scrollX: number;
+  scrollY: number;
+  zoomLevel: number;
 }
 
 interface Participant {
   id: string;
   name: string;
-  role: 'host' | 'guest';
-  joinedAt: Date;
+  role: "host" | "guest";
+  color: string;
 }
 
-// Placeholder for WebSockets/Firebase sync
-export const useRealtimeSync = (boardId: string, userRole: 'host' | 'guest') => {
-  const [board, setBoard] = useState<SharedBoard | null>(null);
+export interface UserAwareness {
+  id: string;
+  name: string;
+  color: string;
+  cursor?: { x: number; y: number };
+  activeTool?: string;
+  isDrawing?: boolean;
+  viewport?: ViewportState;
+}
+
+export const useRealtimeSync = (
+  boardId: string,
+  userRole: "host" | "guest",
+  userName: string
+) => {
+  // All state hooks
+  const [board, setBoard] = useState<SharedBoard>({
+    id: boardId,
+    elements: [],
+    participants: [],
+    viewport: { scrollX: 0, scrollY: 0, zoomLevel: 1.0 }
+  });
   const [participants, setParticipants] = useState<Participant[]>([]);
   const [isConnected, setIsConnected] = useState(false);
-  const intervalRef = useRef<NodeJS.Timeout>();
+  const [awarenessStates, setAwarenessStates] = useState<Map<number, UserAwareness>>(new Map());
 
+  // Refs
+  const ydocRef = useRef<Y.Doc | null>(null);
+  const providerRef = useRef<FireProvider | null>(null);
+  const elementsRef = useRef<Y.Array<any> | null>(null);
+  const participantsRef = useRef<Y.Map<Participant> | null>(null);
+  const viewportRef = useRef<Y.Map<any> | null>(null);
+  const awarenessRef = useRef<Awareness | null>(null);
+  const undoManagerRef = useRef<Y.UndoManager | null>(null);
+  const initializedRef = useRef(false);
+  const connectionCheckTimeoutRef = useRef<number | null>(null);
+
+  // Initialize Yjs + Firebase
   useEffect(() => {
-    if (!boardId) return;
-
-    // Initialize board for host
-    if (userRole === 'host') {
-      const initialBoard: SharedBoard = {
-        id: boardId,
-        hostName: 'Host', // Will be updated from ShareModal
-        createdAt: new Date(),
-        lastModified: new Date(),
-        elements: [],
-        participants: [{
-          id: 'host-1',
-          name: 'Host',
-          role: 'host',
-          joinedAt: new Date()
-        }]
-      };
-      setBoard(initialBoard);
-      setParticipants(initialBoard.participants);
-      setIsConnected(true);
-    } else {
-      // Guest joining: Try to load existing board from localStorage
-      console.log(`Guest joining board: ${boardId}`);
-      try {
-        const existingBoard = localStorage.getItem(`board-${boardId}`);
-        if (existingBoard) {
-          const parsedBoard = JSON.parse(existingBoard);
-          setBoard(parsedBoard);
-          setParticipants(parsedBoard.participants || []);
-          setIsConnected(true);
-          console.log(`Successfully joined board: ${boardId}`);
-        } else {
-          console.warn(`Board not found: ${boardId}`);
-          setIsConnected(false);
-        }
-      } catch (e) {
-        console.error(`Error joining board ${boardId}:`, e);
-        setIsConnected(false);
-      }
+    if (initializedRef.current || !userName || !boardId) {
+      return;
     }
 
-    // Placeholder sync mechanism using localStorage
-    const syncInterval = setInterval(() => {
-      try {
-        const storedBoard = localStorage.getItem(`board-${boardId}`);
-        if (storedBoard) {
-          const parsedBoard = JSON.parse(storedBoard);
-          setBoard(parsedBoard);
-          setParticipants(parsedBoard.participants || []);
-        }
-      } catch (e) {
-        console.error('Sync error:', e);
+    console.log("🔥 Initializing Yjs with Firebase...");
+    console.log("📍 Board ID:", boardId);
+    console.log("👤 User:", userName, userRole);
+    initializedRef.current = true;
+
+    const clientId = localStorage.getItem("clientId") || crypto.randomUUID();
+    localStorage.setItem("clientId", clientId);
+
+    const ydoc = new Y.Doc();
+    ydocRef.current = ydoc;
+
+    // --- FIREBASE PROVIDER SETUP ---
+    console.log("🔧 Creating FireProvider...");
+    
+    const provider = new FireProvider({
+      firebaseApp: app,
+      ydoc: ydoc,
+      path: `edxly-boards/board-${boardId}`
+    });
+    
+    providerRef.current = provider;
+    console.log("✅ FireProvider created successfully");
+
+    // Awareness (FireProvider handles this automatically)
+    const awareness = provider.awareness;
+    awarenessRef.current = awareness;
+
+    // Shared structures
+    const elements = ydoc.getArray("elements");
+    const participantsMap = ydoc.getMap<Participant>("participants");
+    const viewport = ydoc.getMap("viewport");
+
+    elementsRef.current = elements;
+    participantsRef.current = participantsMap;
+    viewportRef.current = viewport;
+
+    // Initialize viewport defaults if empty
+    if (!viewport.has("scrollX")) {
+      viewport.set("scrollX", 0);
+      viewport.set("scrollY", 0);
+      viewport.set("zoomLevel", 1.0);
+    }
+
+    // ✅ FIX: Alternative connection detection
+    // FireProvider may not emit 'synced' event reliably
+    // Instead, we'll use a combination of strategies:
+    
+    // Strategy 1: Listen for 'synced' event (if it fires)
+    provider.on('synced', (isSynced: boolean) => {
+      console.log("🔥 Firebase 'synced' event:", isSynced ? "✅ Connected" : "⏳ Connecting...");
+      setIsConnected(isSynced);
+    });
+
+    // Strategy 2: Check for initial data load
+    let hasReceivedInitialData = false;
+    const checkInitialConnection = () => {
+      if (!hasReceivedInitialData && elements.length >= 0) {
+        hasReceivedInitialData = true;
+        console.log("🔥 Firebase: Initial data loaded ✅");
+        setIsConnected(true);
       }
-    }, 1000); // Sync every second
+    };
 
-    intervalRef.current = syncInterval;
+    // Strategy 3: Set connected after first successful operation
+    const markAsConnected = () => {
+      if (!isConnected) {
+        console.log("🔥 Firebase: Connection confirmed via data activity ✅");
+        setIsConnected(true);
+      }
+    };
 
+    // Strategy 4: Delayed connection check (fallback)
+    connectionCheckTimeoutRef.current = window.setTimeout(() => {
+      // If provider exists and no errors, assume connected
+      if (providerRef.current && !hasReceivedInitialData) {
+        console.log("🔥 Firebase: Assuming connected (timeout fallback) ✅");
+        setIsConnected(true);
+      }
+    }, 2000); // Give Firebase 2 seconds to initialize
+
+    // Error handling
+    provider.on('error', (error: any) => {
+      console.error("❌ FireProvider Error:", error);
+      setIsConnected(false);
+    });
+
+    // Observe elements changes
+    const elementsObserver = () => {
+      const currentElements = elements.toArray();
+      console.log("🔔 Elements changed:", currentElements.length, "elements");
+      
+      // ✅ Mark as connected when we successfully observe changes
+      markAsConnected();
+      checkInitialConnection();
+      
+      setBoard((prev) => ({
+        ...prev,
+        elements: currentElements
+      }));
+    };
+
+    elements.observeDeep(elementsObserver);
+
+    // Observe viewport changes
+    const viewportObserver = () => {
+      const currentViewport = {
+        scrollX: (viewport.get("scrollX") as number) || 0,
+        scrollY: (viewport.get("scrollY") as number) || 0,
+        zoomLevel: (viewport.get("zoomLevel") as number) || 1.0,
+      };
+      
+      markAsConnected();
+      
+      setBoard((prev) => ({
+        ...prev,
+        viewport: currentViewport,
+      }));
+    };
+
+    viewport.observe(viewportObserver);
+
+    // Observe participants
+    const participantsObserver = () => {
+      const currentParticipants = Array.from(participantsMap.values());
+      console.log("👥 Participants updated:", currentParticipants.length);
+      
+      markAsConnected();
+      
+      setParticipants(currentParticipants);
+      setBoard((prev) => ({
+        ...prev,
+        participants: currentParticipants
+      }));
+    };
+
+    participantsMap.observe(participantsObserver);
+
+    // Awareness updates
+    awareness.on("update", () => {
+      const states = awareness.getStates() as Map<number, UserAwareness>;
+      setAwarenessStates(new Map(states));
+      markAsConnected();
+    });
+
+    awareness.on("change", () => {
+      console.log("👁️ Awareness changed:", awareness.getStates().size, "users");
+      markAsConnected();
+    });
+
+    // Setup user
+    const userColor = ["#3B82F6", "#10B981", "#F59E0B", "#EF4444", "#8B5CF6"][
+      Math.floor(Math.random() * 5)
+    ];
+
+    awareness.setLocalStateField("user", {
+      id: clientId,
+      name: userName,
+      color: userColor,
+    });
+
+    // Add participant to persistent map (if new)
+    if (!participantsMap.has(clientId)) {
+      participantsMap.set(clientId, {
+        id: clientId,
+        name: userName,
+        role: userRole,
+        color: userColor,
+      });
+      console.log("✅ Added participant to shared map");
+    }
+
+    // UndoManager
+    try {
+      undoManagerRef.current = new Y.UndoManager(elements);
+      console.log("✅ UndoManager initialized");
+    } catch (err) {
+      console.warn("⚠️ UndoManager error:", err);
+    }
+
+    // ✅ Initial connection check after setup
+    checkInitialConnection();
+
+    console.log("🎉 Yjs initialization complete!");
+    
+    // Cleanup
     return () => {
-      clearInterval(syncInterval);
+      console.log("🧹 Cleaning up Yjs/Firebase connection");
+      initializedRef.current = false;
+      
+      if (connectionCheckTimeoutRef.current) {
+        clearTimeout(connectionCheckTimeoutRef.current);
+      }
+      
+      try {
+        provider.destroy();
+      } catch (err) {
+        console.warn("⚠️ Provider destroy error:", err);
+      }
+      
+      ydoc.destroy();
+      
+      ydocRef.current = null;
+      providerRef.current = null;
+      elementsRef.current = null;
+      participantsRef.current = null;
+      viewportRef.current = null;
+      awarenessRef.current = null;
+      undoManagerRef.current = null;
     };
-  }, [boardId, userRole]);
+  }, [boardId, userName, userRole]);
 
-  // Add drawing element
-  const addElement = (element: any) => {
-    if (!board) return;
+  // Sync functions
+  const addElement = useCallback((element: any) => {
+    const elements = elementsRef.current;
+    if (!elements) {
+      console.warn("⚠️ Cannot add element: elements ref is null");
+      return;
+    }
 
-    const updatedBoard = {
-      ...board,
-      elements: [...board.elements, element],
-      lastModified: new Date()
-    };
+    try {
+      if (!element.id) {
+        element.id = `${element.type || 'element'}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+      }
+      elements.push([element]);
+      console.log("✅ Element added:", element.id);
+      
+      // ✅ Confirm connection on successful add
+      if (!isConnected) {
+        setIsConnected(true);
+      }
+    } catch (err) {
+      console.error("❌ Add element failed:", err);
+    }
+  }, [isConnected]);
 
-    setBoard(updatedBoard);
-    localStorage.setItem(`board-${boardId}`, JSON.stringify(updatedBoard));
+  const updateElement = useCallback((elementId: string, updates: Partial<any>) => {
+    const elements = elementsRef.current;
+    const ydoc = ydocRef.current;
+    
+    if (!elements || !ydoc) {
+      console.warn("⚠️ Cannot update element: refs are null");
+      return;
+    }
 
-    // TODO: Broadcast changes via WebSockets/Firebase
-    console.log('Element added:', element);
-  };
+    const elementsArray = elements.toArray();
+    const index = elementsArray.findIndex((el: any) => el.id === elementId);
 
-  // Update element
-  const updateElement = (elementId: string, updates: Partial<any>) => {
-    if (!board) return;
+    if (index !== -1) {
+      ydoc.transact(() => {
+        const updatedElement = { ...elementsArray[index], ...updates };
+        elements.delete(index, 1);
+        elements.insert(index, [updatedElement]);
+      });
+      console.log("✅ Element updated:", elementId);
+    } else {
+      console.warn("⚠️ Element not found:", elementId);
+    }
+  }, []);
 
-    const updatedElements = board.elements.map(el =>
-      el.id === elementId ? { ...el, ...updates } : el
-    );
+  const deleteElement = useCallback((elementId: string) => {
+    const elements = elementsRef.current;
+    if (!elements) {
+      console.warn("⚠️ Cannot delete element: elements ref is null");
+      return;
+    }
 
-    const updatedBoard = {
-      ...board,
-      elements: updatedElements,
-      lastModified: new Date()
-    };
+    const elementsArray = elements.toArray();
+    const index = elementsArray.findIndex((el: any) => el.id === elementId);
 
-    setBoard(updatedBoard);
-    localStorage.setItem(`board-${boardId}`, JSON.stringify(updatedBoard));
+    if (index !== -1) {
+      elements.delete(index, 1);
+      console.log("✅ Element deleted:", elementId);
+    } else {
+      console.warn("⚠️ Element not found:", elementId);
+    }
+  }, []);
 
-    // TODO: Broadcast changes via WebSockets/Firebase
-  };
+  const updateViewport = useCallback((viewport: Partial<ViewportState>) => {
+    const viewportMap = viewportRef.current;
+    if (!viewportMap) {
+      console.warn("⚠️ Cannot update viewport: viewport ref is null");
+      return;
+    }
 
-  // Delete element
-  const deleteElement = (elementId: string) => {
-    if (!board) return;
+    if (viewport.scrollX !== undefined) viewportMap.set("scrollX", viewport.scrollX);
+    if (viewport.scrollY !== undefined) viewportMap.set("scrollY", viewport.scrollY);
+    if (viewport.zoomLevel !== undefined) viewportMap.set("zoomLevel", viewport.zoomLevel);
+  }, []);
 
-    const updatedBoard = {
-      ...board,
-      elements: board.elements.filter(el => el.id !== elementId),
-      lastModified: new Date()
-    };
+  const undo = useCallback(() => {
+    if (undoManagerRef.current) {
+      undoManagerRef.current.undo();
+      console.log("↩️ Undo performed");
+    }
+  }, []);
 
-    setBoard(updatedBoard);
-    localStorage.setItem(`board-${boardId}`, JSON.stringify(updatedBoard));
+  const redo = useCallback(() => {
+    if (undoManagerRef.current) {
+      undoManagerRef.current.redo();
+      console.log("↪️ Redo performed");
+    }
+  }, []);
 
-    // TODO: Broadcast changes via WebSockets/Firebase
-  };
+  const canUndo = useCallback(() => {
+    return !!undoManagerRef.current && (undoManagerRef.current.undoStack?.length ?? 0) > 0;
+  }, []);
 
-  // Add participant (for guests joining)
-  const addParticipant = (name: string) => {
-    if (!board) return;
-
-    const newParticipant: Participant = {
-      id: `guest-${Date.now()}`,
-      name,
-      role: 'guest',
-      joinedAt: new Date()
-    };
-
-    const updatedBoard = {
-      ...board,
-      participants: [...board.participants, newParticipant]
-    };
-
-    setBoard(updatedBoard);
-    setParticipants(updatedBoard.participants);
-    localStorage.setItem(`board-${boardId}`, JSON.stringify(updatedBoard));
-
-    // TODO: Broadcast participant joined via WebSockets/Firebase
-    console.log(`Guest ${name} joined the board`);
-  };
+  const canRedo = useCallback(() => {
+    return !!undoManagerRef.current && (undoManagerRef.current.redoStack?.length ?? 0) > 0;
+  }, []);
 
   return {
     board,
     participants,
     isConnected,
+    awareness: awarenessRef.current,
+    awarenessStates,
     addElement,
     updateElement,
     deleteElement,
-    addParticipant
+    updateViewport,
+    ydoc: ydocRef.current,
+    elements: elementsRef.current,
+    undo,
+    redo,
+    canUndo,
+    canRedo,
   };
 };

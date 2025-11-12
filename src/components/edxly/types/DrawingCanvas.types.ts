@@ -37,7 +37,7 @@ export interface ConnectorData {
 
 export interface DrawingElement {
   id: string;
-  type: 'path' | 'group' | 'shape' | 'flowchart' | 'chart' | 'text';
+  type: 'path' | 'group' | 'shape' | 'flowchart' | 'chart' | 'text' | 'image';
   path?: Point[];
   children?: string[];
   strokeColor?: string;
@@ -45,10 +45,10 @@ export interface DrawingElement {
   fillColor?: string;
   transform?: Transform;
   opacity?: number;
-  cap?: 'round' | 'square';
+  cap?: 'round' | 'square' | 'butt';
   join?: 'round' | 'miter' | 'bevel';
   dashPattern?: number[];
-  shapeType?: 'rectangle' | 'rounded-rectangle' | 'ellipse' | 'circle' | 'line' | 'polygon' | 'star';
+  shapeType?: 'rectangle' | 'rounded-rectangle' | 'ellipse' | 'circle' | 'diamond' | 'line' | 'polygon' | 'star' | 'arrow';
   shapeData?: ShapeData;
   flowchartType?: 'start' | 'end' | 'process' | 'decision' | 'data';
   chartType?: 'bar' | 'line' | 'pie';
@@ -63,6 +63,18 @@ export interface DrawingElement {
   lockMovementX?: boolean;
   lockMovementY?: boolean;
   evented?: boolean;
+  timestamp?: number;
+  author?: string;
+  backgroundColor?: string;
+  rotation?: number;
+  locked?: boolean;
+  imageData?: string;
+  width?: number;
+  height?: number;
+  originalWidth?: number;
+  originalHeight?: number;
+  aspectRatio?: number;
+  crop?: { sx: number, sy: number, sWidth: number, sHeight: number } | null;
 }
 
 export interface SelectionHandle {
@@ -98,7 +110,7 @@ export interface PanSettings {
 }
 
 export interface ShapeSettings {
-  selectedShape: 'rectangle' | 'rounded-rectangle' | 'ellipse' | 'circle' | 'line' | 'polygon' | 'star';
+  selectedShape: 'rectangle' | 'rounded-rectangle' | 'ellipse' | 'circle' | 'diamond' | 'line' | 'polygon' | 'star' | 'arrow';
   strokeWidth: number;
   cornerRadius: number;
   sides: number; // for polygon
@@ -129,6 +141,7 @@ export interface DrawingCanvasProps {
     placeFlowchartShape: (shapeType: 'oval' | 'rectangle' | 'diamond') => void;
     activateSelectionTool: () => void;
     addElementsViaAction: (elements: any[]) => void;
+    getElements: () => DrawingElement[];
   } | null>;
   textMode?: 'simple' | 'colorful' | null;
   onImageUpload?: (file: File) => void;
@@ -139,6 +152,10 @@ export interface DrawingCanvasProps {
   onEmojiPlaced?: () => void;
   onShapeSelect?: (shape: 'rectangle' | 'ellipse' | 'polygon' | 'line') => void;
   shapeColor?: string;
+  shapeSettings?: ShapeSettings;
+  boardId?: string;
+  userRole?: 'host' | 'guest';
+  userName?: string;
 }
 
 export interface ImageElement {

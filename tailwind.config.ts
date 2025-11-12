@@ -57,6 +57,7 @@ const config: Config = {
         mono: ['var(--font-mono)', ...fontFamily.mono],
       },
       
+      
       // Color palette using CSS variables for theming
       colors: {
         // Base colors

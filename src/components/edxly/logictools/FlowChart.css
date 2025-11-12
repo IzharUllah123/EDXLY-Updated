@@ -1,0 +1,165 @@
+
+/* Apply same hover style to both section headers and option buttons */
+.ffd-section-header:hover,
+.ffd-option-btn:hover {
+  background-color: gray !important;
+  color: white !important;
+  border-radius: 5px;
+}
+
+/* Ensure inner text/icons inside option buttons also turn white */
+.ffd-option-btn:hover * {
+  color: white !important;
+}
+
+
+
+
+
+.ffd-container{
+    width: 200px;
+    height: 200px;
+}
+
+
+
+.ffd-option-btn {
+    margin-bottom: 10px;
+    display: flex;
+    flex-direction: column;
+    margin: 4px;
+   
+padding: 0.5rem 1rem; /* px-4 py-2 */
+font-weight: 600;
+border-radius: 0.5rem; /* rounded-lg */
+box-shadow: 0 4px 6px rgba(0,0,0,0.06);
+border: none;
+cursor: pointer;
+/* transition: background-color 150ms ease, color 150ms ease
+; */
+
+}
+.ffd-main-btn{
+background-color: #e8eceb;
+border: #374151;
+border-radius: 3px;
+padding: 13px;
+}
+
+.ffd-main-btn:hover{
+    background-color: white;
+    border: 1px solid #374151;
+}
+
+/* Generate Flowchart button (white / amber text) */
+.ffd-generate {
+background-color: #ffffff; /* bg-white */
+color: gray; /* text-amber-600 */
+}
+.ffd-generate:hover {
+background-color: #fffbeb; /* hover:bg-amber-100 approximate */
+}
+
+
+/* Flowchart 2 button (white / green text) */
+.ffd-flow2 {
+background-color: #ffffff;
+color: gray; /* text-green-700 */
+}
+.ffd-flow2:hover { background-color: #f0fdf4; /* hover:bg-green-100 */ }
+
+
+/* Disabled state */
+.ffd-disabled {
+background-color: #9ca3af; /* gray-400 */
+color: gray; /* gray-700 */
+cursor: not-allowed;
+}
+
+
+/* Utility: full-width option buttons when desired */
+.ffd-option-btn.ffd-full {
+width: 100%;
+}
+
+
+/* Section styling */
+.ffd-section {
+  margin-bottom: 1rem;
+}
+
+.ffd-section-title {
+  font-size: 11px;
+  font-weight: 600;
+  color: #666;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 0.5rem;
+  padding-left: 0.25rem;
+}
+
+.ffd-section:last-child {
+  margin-bottom: 0;
+}
+
+/* Graph buttons */
+.ffd-graph {
+  background-color: white;
+  color: gray;
+}
+
+.ffd-graph:hover {
+  background-color: #e9d5ff;
+}
+
+.ffd-graph-axes {
+  background-color: white;
+  color: gray;
+}
+
+.ffd-graph-axes:hover {
+  background-color: #e9d5ff;
+}
+
+/* Small responsiveness */
+@media (max-width: 420px) {
+.ffd-container { padding: 0.75rem; }
+.ffd-main-btn { padding: 0.5rem 1rem; }
+}
+
+.ffd-section-header:hover {
+  background-color: gray;
+  color: white;
+  border-radius: 5px;
+}
+
+/* Make text inside header turn white when button is hovered */
+.ffd-section-header:hover .ffd-section-title,
+.ffd-section-header:hover .ffd-section-caret {
+  color: white;
+}
+
+
+
+
+
+.ffd-section { margin-bottom: 6px; }
+.ffd-section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+  padding: 0.5rem;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  text-align: left;
+}
+.ffd-section-title { font-weight: 600; }
+
+
+.ffd-section-caret { margin-left: 8px; opacity: 0.8; }
+.ffd-section-children { padding-left: 0.5rem; display: flex; flex-direction: column; gap: 6px; margin-top: 6px; }
+.ffd-option-btn { padding: 0.45rem 0.6rem; border-radius: 6px; border: none; cursor: pointer; }
+.ffd-option-btn:hover { background: #eee; } /* match your toolbar hover */
+.ffd-disabled { opacity: 0.6; cursor: not-allowed; }

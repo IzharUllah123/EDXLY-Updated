@@ -1,14 +1,14 @@
 import { createBrowserRouter } from "react-router-dom";
+
 import Index from "./pages/index";
 import RoomPage from "./pages/RoomPage";
 import NotFound from "./pages/NotFound";
-
 import BoardPage from "./pages/BoardPage";
 
 export const router = createBrowserRouter([
   {
     path: "/",
-    element: <Index />,
+    element: <Index />, // Host stays here
   },
   {
     path: "/room/:roomId",
@@ -16,7 +16,7 @@ export const router = createBrowserRouter([
   },
   {
     path: "/board/:boardId",
-    element: <BoardPage />,
+    element: <BoardPage />, // Only guests navigate here
   },
   {
     path: "*",

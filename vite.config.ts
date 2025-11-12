@@ -5,15 +5,23 @@ import path from "path";
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => ({
   server: {
-    host: "::",
+    host: "::",               // allow access from any network interface
     port: 5173,
+    allowedHosts: [
+      ".ngrok-free.dev",      // ✅ allows any ngrok subdomain
+      ".loca.lt",             // optional: allows LocalTunnel
+      "localhost",            // local dev
+    ],
   },
   plugins: [
-    react()
+    react(),
   ].filter(Boolean),
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),
     },
+  },
+  optimizeDeps: {
+    exclude: ["yjs", "y-webrtc"], // ✅ keep this outside resolve
   },
 }));

@@ -33,13 +33,41 @@ export const UploadMediaTool = ({ isActive, onClick, onImageUpload }: UploadMedi
         return;
       }
 
-      // Close any existing modal
+      // Pass the file to the parent component
       onImageUpload?.(file);
+    }
+    
+    // Reset input to allow selecting same file again
+    if (e.target) {
+      e.target.value = '';
+    }
+  };
+
+  // Prevent drag/drop default behavior
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    
+    const files = e.dataTransfer.files;
+    if (files.length > 0) {
+      const file = files[0];
+      if (file.type.startsWith('image/')) {
+        onImageUpload?.(file);
+      }
     }
   };
 
   return (
-    <div className="flex flex-col items-center gap-0.5">
+    <div 
+      className="flex flex-col items-center gap-0.5"
+      onDragOver={handleDragOver}
+      onDrop={handleDrop}
+    >
       <input
         ref={fileInputRef}
         type="file"

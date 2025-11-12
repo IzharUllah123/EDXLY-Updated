@@ -8,7 +8,8 @@
     "build": "vite build",
     "build:dev": "vite build --mode development",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "start-server": "y-websocket --port 1234"
   },
   "dependencies": {
     "@fontsource-variable/inter": "^5.2.5",
@@ -51,6 +52,7 @@
     "d3-selection": "^3.0.0",
     "date-fns": "^3.6.0",
     "embla-carousel-react": "^8.3.0",
+    "firebase": "^10.14.1",
     "framer-motion": "^12.15.0",
     "input-otp": "^1.2.4",
     "lucide-react": "^0.542.0",
@@ -69,6 +71,10 @@
     "tailwindcss-animate": "^1.0.7",
     "vaul": "^0.9.3",
     "vite-plugin-pwa": "^1.0.0",
+    "y-fire": "^2.1.1",
+    "y-webrtc": "^10.3.0",
+    "y-websocket": "^1.5.4",
+    "yjs": "^13.6.27",
     "zod": "^3.23.8"
   },
   "devDependencies": {
